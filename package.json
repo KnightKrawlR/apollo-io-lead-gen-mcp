@@ -1,0 +1,45 @@
+{
+  "name": "apollo-io-lead-gen-mcp",
+  "version": "1.0.0",
+  "description": "Enhanced Apollo.io MCP server for lead generation with comprehensive search capabilities for finding HVAC businesses and decision makers",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx --watch src/index.ts",
+    "stdio": "node dist/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "apollo-io",
+    "model-context-protocol",
+    "ai-assistant",
+    "apollo-io-api",
+    "apollo-io-integration",
+    "typescript",
+    "people-enrichment",
+    "organization-enrichment",
+    "people-search",
+    "organization-search",
+    "job-postings",
+    "lead-generation",
+    "hvac",
+    "b2b-sales",
+    "ai-tools"
+  ],
+  "author": "Enhanced by Manus AI (original by lakhvinder singh)",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.8.0",
+    "axios": "^1.6.7",
+    "dotenv": "^16.4.7",
+    "mcp-proxy-auth": "^1.0.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}
