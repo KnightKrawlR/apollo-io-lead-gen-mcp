@@ -1,5 +1,5 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import {
   CallToolRequestSchema,
   ErrorCode,
@@ -9,9 +9,6 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { ApolloClient } from '../dist/apollo-client.js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { randomUUID } from 'crypto';
-
-const SESSION_ID_HEADER_NAME = 'mcp-session-id';
 
 // Define tools configuration
 const tools: Tool[] = [
@@ -336,13 +333,31 @@ async function executeTool(toolName: string, args: any, apollo: ApolloClient) {
   }
 }
 
-// Global server and transports storage
-let sharedMcpServer: Server | null = null;
-const transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
+// Vercel serverless function handler
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Handle CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Apollo-API-Key');
 
-function createMcpServer(apiKey: string): Server {
-  const apollo = new ApolloClient(apiKey);
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  // Extract Apollo.io API key from custom header
+  const apiKey = req.headers['x-apollo-api-key'] as string;
   
+  if (!apiKey) {
+    return res.status(401).json({
+      error: 'Missing API key',
+      message: 'Please provide your Apollo.io API key in the X-Apollo-API-Key header'
+    });
+  }
+
+  // Initialize Apollo client with the provided API key
+  const apollo = new ApolloClient(apiKey);
+
+  // Create MCP server instance
   const server = new Server(
     {
       name: 'apollo-io-lead-gen',
@@ -366,106 +381,12 @@ function createMcpServer(apiKey: string): Server {
     return await executeTool(request.params.name, args, apollo);
   });
 
-  return server;
-}
+  // Handle SSE transport for MCP
+  const transport = new SSEServerTransport('/api/mcp', res);
+  await server.connect(transport);
 
-function isInitializeRequest(body: any): boolean {
-  return body && body.method === 'initialize';
-}
-
-function createErrorResponse(message: string) {
-  return {
-    jsonrpc: '2.0',
-    error: {
-      code: -32600,
-      message: message
-    },
-    id: null
-  };
-}
-
-// Vercel serverless function handler
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Handle CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Apollo-API-Key, mcp-session-id');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  // Extract Apollo.io API key from custom header
-  const apiKey = req.headers['x-apollo-api-key'] as string;
-  
-  if (!apiKey) {
-    return res.status(401).json({
-      error: 'Missing API key',
-      message: 'Please provide your Apollo.io API key in the X-Apollo-API-Key header'
-    });
-  }
-
-  try {
-    if (req.method === 'POST') {
-      const sessionId = req.headers[SESSION_ID_HEADER_NAME] as string | undefined;
-      let transport: StreamableHTTPServerTransport;
-
-      // Reuse existing transport
-      if (sessionId && transports[sessionId]) {
-        transport = transports[sessionId];
-        await transport.handleRequest(req, res, req.body);
-        return;
-      }
-
-      // Create new transport for initialize request
-      if (!sessionId && isInitializeRequest(req.body)) {
-        // Create a new server instance for this API key
-        const server = createMcpServer(apiKey);
-        
-        transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: () => randomUUID(),
-        });
-
-        await server.connect(transport);
-        await transport.handleRequest(req, res, req.body);
-
-        // Store transport for future requests
-        const newSessionId = transport.sessionId;
-        if (newSessionId) {
-          transports[newSessionId] = transport;
-        }
-
-        return;
-      }
-
-      return res.status(400).json(
-        createErrorResponse('Bad Request: invalid session ID or method.')
-      );
-    }
-
-    if (req.method === 'GET') {
-      const sessionId = req.headers[SESSION_ID_HEADER_NAME] as string | undefined;
-      
-      if (!sessionId || !transports[sessionId]) {
-        return res.status(400).json(
-          createErrorResponse('Bad Request: invalid session ID.')
-        );
-      }
-
-      console.log(`Establishing SSE stream for session ${sessionId}`);
-      const transport = transports[sessionId];
-      await transport.handleRequest(req, res);
-      return;
-    }
-
-    return res.status(405).json(
-      createErrorResponse('Method Not Allowed')
-    );
-
-  } catch (error: any) {
-    console.error('Error handling MCP request:', error);
-    return res.status(500).json(
-      createErrorResponse('Internal server error: ' + error.message)
-    );
-  }
+  // Keep connection alive
+  req.socket.setTimeout(0);
+  req.socket.setNoDelay(true);
+  req.socket.setKeepAlive(true);
 }
