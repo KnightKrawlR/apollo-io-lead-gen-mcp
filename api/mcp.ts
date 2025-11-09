@@ -10,14 +10,6 @@ import {
 import { ApolloClient } from '../dist/apollo-client.js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-// Initialize Apollo.io client with API key from environment
-const apiKey = process.env.APOLLO_IO_API_KEY;
-if (!apiKey) {
-  throw new Error('APOLLO_IO_API_KEY environment variable is required');
-}
-
-const apollo = new ApolloClient(apiKey);
-
 // Define tools configuration
 const tools: Tool[] = [
   {
@@ -250,7 +242,7 @@ const tools: Tool[] = [
 ];
 
 // Tool execution handler
-async function executeTool(toolName: string, args: any) {
+async function executeTool(toolName: string, args: any, apollo: ApolloClient) {
   try {
     switch (toolName) {
       case 'people_enrichment': {
@@ -346,11 +338,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Handle CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Apollo-API-Key');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
+
+  // Extract Apollo.io API key from custom header
+  const apiKey = req.headers['x-apollo-api-key'] as string;
+  
+  if (!apiKey) {
+    return res.status(401).json({
+      error: 'Missing API key',
+      message: 'Please provide your Apollo.io API key in the X-Apollo-API-Key header'
+    });
+  }
+
+  // Initialize Apollo client with the provided API key
+  const apollo = new ApolloClient(apiKey);
 
   // Create MCP server instance
   const server = new Server(
@@ -373,7 +378,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const args = request.params.arguments ?? {};
-    return await executeTool(request.params.name, args);
+    return await executeTool(request.params.name, args, apollo);
   });
 
   // Handle SSE transport for MCP

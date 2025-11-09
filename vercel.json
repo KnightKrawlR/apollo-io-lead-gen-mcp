@@ -11,8 +11,5 @@
       "src": "/api/mcp",
       "dest": "/api/mcp.ts"
     }
-  ],
-  "env": {
-    "APOLLO_IO_API_KEY": "@apollo_io_api_key"
-  }
+  ]
 }
