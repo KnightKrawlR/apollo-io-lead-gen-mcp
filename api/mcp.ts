@@ -9,7 +9,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { ApolloClient } from '../dist/apollo-client.js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { randomUUID } from 'crypto';
+import crypto from 'crypto';
 
 const SESSION_ID_HEADER_NAME = 'mcp-session-id';
 
@@ -423,7 +423,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const server = createMcpServer(apiKey);
         
         transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: () => randomUUID(),
+          sessionIdGenerator: () => crypto.randomUUID(),
         });
 
         await server.connect(transport);
