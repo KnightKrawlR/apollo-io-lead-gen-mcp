@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/mcp.ts",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/mcp",
+      "dest": "/api/mcp.ts"
+    }
+  ],
+  "env": {
+    "APOLLO_IO_API_KEY": "@apollo_io_api_key"
+  }
+}
