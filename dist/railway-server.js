@@ -372,10 +372,8 @@ app.get('/mcp', async (req, res) => {
         // Store transport by session ID
         transports.set(transport.sessionId, transport);
         console.log(`New SSE connection established. Session: ${transport.sessionId}`);
-        // Connect server to transport
+        // Connect server to transport (this automatically starts the SSE stream)
         await server.connect(transport);
-        // Start SSE stream
-        await transport.start();
         // Clean up on close
         transport.onclose = () => {
             console.log(`SSE connection closed. Session: ${transport.sessionId}`);
