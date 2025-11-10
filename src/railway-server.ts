@@ -457,6 +457,100 @@ app.post('/mcp', async (req: Request, res: Response) => {
   }
 });
 
+// Stateless MCP endpoint - no session required
+app.post('/mcp-stateless', async (req: Request, res: Response) => {
+  try {
+    const apiKey = req.headers['x-apollo-api-key'] as string;
+    
+    if (!apiKey) {
+      return res.status(200).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32600,
+          message: 'Missing API key. Please provide your Apollo.io API key in the X-Apollo-API-Key header'
+        },
+        id: req.body.id || null
+      });
+    }
+
+    const body = req.body;
+    const apollo = new ApolloClient(apiKey);
+
+    // Handle initialize request
+    if (body.method === 'initialize') {
+      return res.status(200).json({
+        jsonrpc: '2.0',
+        result: {
+          protocolVersion: '2024-11-05',
+          capabilities: {
+            tools: {}
+          },
+          serverInfo: {
+            name: 'apollo-lead-gen',
+            version: '1.0.0'
+          }
+        },
+        id: body.id
+      });
+    }
+
+    // Handle tools/list request
+    if (body.method === 'tools/list') {
+      return res.status(200).json({
+        jsonrpc: '2.0',
+        result: {
+          tools: tools
+        },
+        id: body.id
+      });
+    }
+
+    // Handle tools/call request
+    if (body.method === 'tools/call') {
+      const { name, arguments: args } = body.params;
+
+      try {
+        const result = await executeTool(name, args || {}, apollo);
+        return res.status(200).json({
+          jsonrpc: '2.0',
+          result: result,
+          id: body.id
+        });
+      } catch (error: any) {
+        return res.status(200).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32603,
+            message: error.message || 'Internal error'
+          },
+          id: body.id
+        });
+      }
+    }
+
+    // Unknown method
+    return res.status(200).json({
+      jsonrpc: '2.0',
+      error: {
+        code: -32601,
+        message: `Method not found: ${body.method}`
+      },
+      id: body.id
+    });
+
+  } catch (error: any) {
+    console.error('Error handling stateless request:', error);
+    return res.status(500).json({
+      jsonrpc: '2.0',
+      error: {
+        code: -32603,
+        message: error.message || 'Internal server error'
+      },
+      id: null
+    });
+  }
+});
+
 // Get port from environment or default to 8080
 const PORT = process.env.PORT || 8080;
 
